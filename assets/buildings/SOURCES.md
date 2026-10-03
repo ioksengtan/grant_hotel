@@ -1,6 +1,6 @@
 # Documented window-light displays
 
-These illustrations were generated with the built-in imagegen tool from documentary photo references. They are artistic reconstructions, not exact surveys or evidence of the events. Window mapping and lettering need calibration before simulator integration.
+These illustrations were generated with the built-in imagegen tool from documentary photo references. They are artistic reconstructions, not exact surveys or evidence of the events. The simulator uses an approximate 14x24 grid for APA and a curved 32x18 grid for Encore; these are interaction layouts, not surveyed room counts. Lighting uses painted room samples from each illustration. Static painted lettering is dimmed beneath the interactive area.
 
 ## APA Hotel & Resort Tokyo Bay Makuhari
 - Illustration: apa-makuhari.png

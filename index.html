@@ -36,6 +36,8 @@ h1{
   font-weight:900;font-size:30px;letter-spacing:.12em;color:var(--gold);
 }
 header p{margin:6px 0 0;color:var(--dim);font-size:14px;line-height:1.6}
+.buildings{margin:14px 0 8px;display:flex;gap:8px;flex-wrap:wrap}
+.source{color:var(--gold);font-size:13px}
 .stage{width:100%;max-width:640px;padding:6px 0 0}
 #hotel{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none}
 .controls{width:100%;max-width:640px;padding:6px 16px 28px}
@@ -69,16 +71,25 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 </head>
 <body>
 <header>
-  <h1>圓山亮燈</h1>
-  <p>在水彩夜景裡，用 192 扇窗畫出你的光。點燈、播放動畫，或讓文字走過建築。</p>
+  <h1 id="scene-title">圓山亮燈</h1>
+  <p id="scene-description">在水彩夜景裡，用 192 扇窗畫出你的光。點燈、播放動畫，或讓文字走過建築。</p>
+  <nav class="buildings" aria-label="選擇建築">
+    <button class="chip" data-building="grand" aria-pressed="true">台北・圓山</button>
+    <button class="chip" data-building="apa" aria-pressed="false">幕張・APA</button>
+    <button class="chip" data-building="encore" aria-pressed="false">拉斯維加斯・Encore</button>
+  </nav>
+  <a class="source" id="scene-source" target="_blank" rel="noopener" hidden>查看真實亮燈照片 ↗</a>
 </header>
 
 <div class="stage">
   <svg id="hotel" viewBox="0 0 1448 1086" role="img" aria-label="圓山大飯店水彩夜景，窗戶可以開關燈">
     <defs>
-      <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
+      <filter id="window-night"><feColorMatrix type="matrix" values="0.16 0 0 0 0  0 0.20 0 0 0  0 0 0.30 0 0  0 0 0 1 0"/></filter>
+      <clipPath id="window-area"><polygon id="window-boundary"/></clipPath>
+      <image id="room-texture" href="hotel.webp" width="1448" height="1086"/>
+      <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
     </defs>
-    <image href="hotel-landscape.png" width="1448" height="1086"/>
+    <image id="scene-image" href="hotel-landscape.png" width="1448" height="1086"/>
     <g id="dark"></g>
     <g id="lit"></g>
     <g id="glow" filter="url(#blur)" style="mix-blend-mode:screen"></g>
@@ -86,6 +97,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 </div>
 
 <div class="controls">
+  <div class="chips"><button class="chip" id="zoom" aria-pressed="false">放大窗戶</button><button class="chip" id="example">範例排字</button></div>
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-draw" aria-selected="true" data-mode="draw">繪製</button>
     <button class="tab" role="tab" id="tab-anim" aria-selected="false" data-mode="anim">動畫</button>
@@ -116,7 +128,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   <div class="panel" id="panel-text" hidden>
     <div class="row"><input id="msg" type="text" value="GRAND HOTEL" maxlength="40" aria-label="要顯示的文字"></div>
     <div class="speed"><span>慢</span><input id="speed" type="range" min="3" max="14" value="6" aria-label="捲動速度"><span>快</span></div>
-    <p class="hint">文字會從右邊捲進來，每一扇窗就是一個像素。窗格為 24×8，英文和數字最清楚。</p>
+    <p class="hint">文字會從右邊捲進來，每一扇窗就是一個像素。英文和數字最清楚；可放大窗戶操作。</p>
   </div>
 </div>
 
@@ -134,30 +146,62 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   var $=function(id){return document.getElementById(id)};
   var svg=$('hotel');
 
-  // Reuse painted rooms so both light states retain ink lines and paper texture.
-  function paintedRoom(parent,sourceX,sourceY,x,y,h){
-    var room=el('svg',{x:x,y:y,width:WW,height:h,
-      viewBox:sourceX+' '+sourceY+' 48 34',preserveAspectRatio:'none',
-      'pointer-events':'none'},parent);
-    el('image',{href:'hotel.webp',width:1448,height:1086},room);
+  var scenes={
+    grand:{title:'圓山亮燈',image:'hotel-landscape.png',texture:'hotel.webp',cols:24,rows:8,example:'LOVE',zoom:'160 350 1130 340'},
+    apa:{title:'幕張・希望之光',image:'assets/buildings/apa-makuhari.png',cols:14,rows:24,example:'HOPE',zoom:'605 230 255 415',source:'https://prtimes.jp/main/html/rd/p/000000338.000018265.html',dark:[746,424,8,10],light:[703,270,9,10]},
+    encore:{title:'Encore・城市之光',image:'assets/buildings/encore-las-vegas.png',cols:32,rows:18,example:'STAY HOME',zoom:'240 190 1030 730',source:'https://www.ktnv.com/news/encore-at-wynn-las-vegas-scaling-back-operations',dark:[707,587,16,12],light:[649,439,16,12]}
+  };
+  var scene=scenes.grand, sceneKey='grand', cells=[], zoomed=false;
+  function point(u,v){
+    if(sceneKey==='apa')return [643+187*u+10*v,258+12*u+354*v];
+    return [300+892*u-77*v+115*u*v,291-93*u+64*Math.sin(Math.PI*u)+559*v-83*u*v];
+  }
+  function corners(r,c){
+    if(sceneKey==='grand'){
+      var x=GX+c*CW+WX,y=GY+r*CH;
+      return [[x,y],[x+WW,y],[x+WW,y+WH],[x,y+WH]];
+    }
+    var u=c/COLS,v=r/ROWS,du=0.74/COLS,dv=0.68/ROWS;
+    u+=0.1/COLS;v+=0.12/ROWS;
+    return [point(u,v),point(u+du,v),point(u+du,v+dv),point(u,v+dv)];
+  }
+  // Painted samples retain window frames, interior details and watercolor grain.
+  function paintedRoom(parent,source,p){
+    var a=p[0],b=p[1],d=p[3];
+    var room=el('svg',{width:1,height:1,viewBox:source.join(' '),preserveAspectRatio:'none',
+      transform:'matrix('+(b[0]-a[0])+' '+(b[1]-a[1])+' '+(d[0]-a[0])+' '+(d[1]-a[1])+' '+a[0]+' '+a[1]+')',
+      overflow:'hidden','pointer-events':'none'},parent);
+    el('use',{href:'#room-texture'},room);
     return room;
   }
 
   var dk=$('dark'), lt=$('lit'), gl=$('glow');
   var litEl=[], glowEl=[];
+  function buildWindows(){
+  dk.replaceChildren();lt.replaceChildren();gl.replaceChildren();
+  $('room-texture').setAttribute('href',scene.texture||scene.image);
+  litEl=[];glowEl=[];cells=[];
+  if(sceneKey!=='grand'){
+    var boundary=[];
+    for(var n=0;n<=COLS;n++)boundary.push(point(n/COLS,0));
+    for(var n=COLS;n>=0;n--)boundary.push(point(n/COLS,1));
+    $('window-boundary').setAttribute('points',boundary.map(function(p){return p.join(',')}).join(' '));
+    el('image',{href:scene.image,width:1448,height:1086,'clip-path':'url(#window-area)',filter:'url(#window-night)'},dk);
+  }
   for(var r=0;r<ROWS;r++){
     litEl.push([]); glowEl.push([]);
-    var y=GY+r*CH, h=Math.min(WH,YMAX-y);
     for(var c=0;c<COLS;c++){
-      var x=GX+c*CW+WX;
+      var p=corners(r,c);cells.push({r:r,c:c,p:p});
       var variant=(r*7+c*3)%97;
-      paintedRoom(dk,283+(variant%3)*58.1,423,x,y,h);
-      var ls=paintedRoom(lt,283+(variant%6)*58.1,380,x,y,h);
+      paintedRoom(dk,scene.dark||[283+(variant%3)*58.1,423,48,34],p);
+      var ls=paintedRoom(lt,scene.light||[283+(variant%6)*58.1,380,48,34],p);
       ls.setAttribute('opacity',0);
       litEl[r].push(ls);
-      glowEl[r].push(el('rect',{x:x-4,y:y,width:WW+8,height:h,rx:12,fill:'#ffb84a','fill-opacity':0},gl));
+      glowEl[r].push(el('polygon',{points:p.map(function(q){return q.join(',')}).join(' '),fill:'#ffb84a','fill-opacity':0},gl));
     }
   }
+  }
+  buildWindows();
 
   // state
   function mk(){var a=[];for(var r=0;r<ROWS;r++)a.push(new Float32Array(COLS));return a}
@@ -211,7 +255,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   var FONT='700 8px "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
   function glyph(ch){
     var u=ch.toUpperCase();
-    if(F[u]){var rows=F[u].split(' ');var cols=[];for(var x=0;x<5;x++){var col=new Uint8Array(ROWS);for(var r=0;r<rows.length;r++)col[r]=rows[r][x]==='1'?1:0;cols.push(col)}return cols}
+    if(F[u]){var rows=F[u].split(' ');var cols=[];var top=Math.floor((ROWS-7)/2);for(var x=0;x<5;x++){var col=new Uint8Array(ROWS);for(var r=0;r<rows.length;r++)col[r+top]=rows[r][x]==='1'?1:0;cols.push(col)}return cols}
     if(ch===' ')return [new Uint8Array(ROWS),new Uint8Array(ROWS),new Uint8Array(ROWS)];
     var cv=document.createElement('canvas'),ctx=cv.getContext('2d');
     ctx.font=FONT;var w=Math.max(1,Math.ceil(ctx.measureText(ch).width));
@@ -287,7 +331,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 
   var prev=new Float32Array(ROWS*COLS).fill(-1);
   var t0=performance.now();
+  var lastFrame=0;
   function frame(now){
+    if(now-lastFrame<33){requestAnimationFrame(frame);return;}
+    lastFrame=now;
     var t=(now-t0)/1000;
     computeTarget(t,now);
     var k=mode==='text'?0.55:0.28;
@@ -311,11 +358,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   // draw interaction
   var painting=false, paintVal=1;
   function cellAt(ev){
-    var b=svg.getBoundingClientRect();
-    var x=(ev.clientX-b.left)/b.width*1448, y=(ev.clientY-b.top)/b.height*1086;
-    var c=Math.floor((x-GX)/CW), r=Math.floor((y-GY)/CH);
-    if(c<0||c>=COLS||r<0||r>=ROWS||y>YMAX)return null;
-    return [r,c];
+    var matrix=svg.getScreenCTM();if(!matrix)return null;
+    var q=new DOMPoint(ev.clientX,ev.clientY).matrixTransform(matrix.inverse());
+    for(var i=0;i<cells.length;i++){
+      var cell=cells[i],p=cell.p,inside=true;
+      for(var j=0;j<4;j++){
+        var a=p[j],b=p[(j+1)%4];
+        if((b[0]-a[0])*(q.y-a[1])-(b[1]-a[1])*(q.x-a[0])<0){inside=false;break;}
+      }
+      if(inside)return [cell.r,cell.c];
+    }
+    return null;
   }
   svg.addEventListener('pointerdown',function(ev){
     if(mode!=='draw')return;
@@ -348,6 +401,27 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
     setTouch();
   }
   tabs.forEach(function(t){t.addEventListener('click',function(){setMode(t.dataset.mode)})});
+
+  function setZoom(){
+    svg.setAttribute('viewBox',zoomed?scene.zoom:'0 0 1448 1086');
+    $('zoom').setAttribute('aria-pressed',String(zoomed));
+    $('zoom').textContent=zoomed?'查看完整地景':'放大窗戶';
+  }
+  $('zoom').addEventListener('click',function(){zoomed=!zoomed;setZoom()});
+  $('example').addEventListener('click',function(){msg.value=scene.example;buildText(msg.value);setMode('text')});
+  document.querySelectorAll('[data-building]').forEach(function(button){
+    button.addEventListener('click',function(){
+      sceneKey=button.dataset.building;scene=scenes[sceneKey];COLS=scene.cols;ROWS=scene.rows;
+      painting=false;buildWindows();user=mk();disp=mk();tgt=mk();prev=new Float32Array(ROWS*COLS).fill(-1);
+      night();initTwinkle();lastTw=0;msg.value=scene.example;buildText(msg.value);setMode('draw');setZoom();
+      $('scene-image').setAttribute('href',scene.image);$('scene-title').textContent=scene.title;
+      $('scene-description').textContent=COLS+'×'+ROWS+' 扇手繪窗格。點燈、播放動畫，或讓文字走過建築。'+(scene.source?'依真實亮燈案例重繪，窗格為模擬配置。':'');
+      svg.setAttribute('aria-label',scene.title+'水彩夜景，窗戶可以開關燈');
+      $('scene-source').hidden=!scene.source;
+      if(scene.source)$('scene-source').href=scene.source;
+      document.querySelectorAll('[data-building]').forEach(function(b){b.setAttribute('aria-pressed',String(b===button))});
+    });
+  });
 
   document.querySelectorAll('[data-preset]').forEach(function(b){
     b.addEventListener('click',function(){
