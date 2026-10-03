@@ -76,11 +76,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 <div class="stage">
   <svg id="hotel" viewBox="0 0 1448 1086" role="img" aria-label="圓山大飯店水彩夜景，窗戶可以開關燈">
     <defs>
-      <linearGradient id="window-light" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff3b7"/>
-        <stop offset="0.55" stop-color="#ffd16d"/>
-        <stop offset="1" stop-color="#e99a37"/>
-      </linearGradient>
       <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
     </defs>
     <image href="hotel-landscape.png" width="1448" height="1086"/>
@@ -139,6 +134,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   var $=function(id){return document.getElementById(id)};
   var svg=$('hotel');
 
+  // Reuse painted rooms so both light states retain ink lines and paper texture.
+  function paintedRoom(parent,sourceX,sourceY,x,y,h){
+    var room=el('svg',{x:x,y:y,width:WW,height:h,
+      viewBox:sourceX+' '+sourceY+' 48 34',preserveAspectRatio:'none',
+      'pointer-events':'none'},parent);
+    el('image',{href:'hotel.webp',width:1448,height:1086},room);
+    return room;
+  }
+
   var dk=$('dark'), lt=$('lit'), gl=$('glow');
   var litEl=[], glowEl=[];
   for(var r=0;r<ROWS;r++){
@@ -146,7 +150,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
     var y=GY+r*CH, h=Math.min(WH,YMAX-y);
     for(var c=0;c<COLS;c++){
       var x=GX+c*CW+WX;
-      var ls=el('rect',{x:x,y:y,width:WW,height:h,rx:1,fill:'url(#window-light)'},lt);
+      var variant=(r*7+c*3)%97;
+      paintedRoom(dk,283+(variant%3)*58.1,423,x,y,h);
+      var ls=paintedRoom(lt,283+(variant%6)*58.1,380,x,y,h);
       ls.setAttribute('opacity',0);
       litEl[r].push(ls);
       glowEl[r].push(el('rect',{x:x-4,y:y,width:WW+8,height:h,rx:12,fill:'#ffb84a','fill-opacity':0},gl));
