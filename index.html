@@ -70,15 +70,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 <body>
 <header>
   <h1>圓山亮燈</h1>
-  <p>把圓山大飯店的 112 扇窗，當成一塊 16×7 的點矩陣螢幕。</p>
+  <p>在水彩夜景裡，用 192 扇窗畫出你的光。點燈、播放動畫，或讓文字走過建築。</p>
 </header>
 
 <div class="stage">
   <svg id="hotel" viewBox="0 0 1448 1086" role="img" aria-label="圓山大飯店水彩夜景，窗戶可以開關燈">
     <defs>
+      <linearGradient id="window-light" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff3b7"/>
+        <stop offset="0.55" stop-color="#ffd16d"/>
+        <stop offset="1" stop-color="#e99a37"/>
+      </linearGradient>
       <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
     </defs>
-    <image href="hotel.webp" width="1448" height="1086"/>
+    <image href="hotel-landscape.png" width="1448" height="1086"/>
     <g id="dark"></g>
     <g id="lit"></g>
     <g id="glow" filter="url(#blur)" style="mix-blend-mode:screen"></g>
@@ -116,15 +121,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   <div class="panel" id="panel-text" hidden>
     <div class="row"><input id="msg" type="text" value="GRAND HOTEL" maxlength="40" aria-label="要顯示的文字"></div>
     <div class="speed"><span>慢</span><input id="speed" type="range" min="3" max="14" value="6" aria-label="捲動速度"><span>快</span></div>
-    <p class="hint">文字會從右邊捲進來，每一扇窗就是一個像素。窗戶只有 7 層高，英文和數字最清楚。</p>
+    <p class="hint">文字會從右邊捲進來，每一扇窗就是一個像素。窗格為 24×8，英文和數字最清楚。</p>
   </div>
 </div>
 
 <script>
 (function(){
   var NS='http://www.w3.org/2000/svg';
-  var COLS=16, ROWS=7;
-  var GX=278, GY=380, CW=58.1, CH=43, WX=5, WW=48, WH=34, YMAX=657;
+  var COLS=24, ROWS=8;
+  var GX=177, GY=368, CW=46, CH=39.5, WX=1, WW=35, WH=25, YMAX=670;
   function el(tag,attrs,parent){
     var e=document.createElementNS(NS,tag);
     for(var k in attrs) e.setAttribute(k,attrs[k]);
@@ -134,25 +139,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   var $=function(id){return document.getElementById(id)};
   var svg=$('hotel');
 
-  // real window pictures cut from the painting: lit ones (row 0) and dark ones (row 1)
-  var litSrc=[0,1,2,3,4,5].map(function(i){return [GX+i*CW+WX,GY]});
-  var darkSrc=[0,1,2].map(function(i){return [GX+i*CW+WX,GY+CH]});
-  function sprite(parent,src,x,y,h){
-    var s=el('svg',{x:x,y:y,width:WW,height:h,viewBox:src[0]+' '+src[1]+' '+WW+' '+h,preserveAspectRatio:'none'},parent);
-    var im=el('image',{width:1448,height:1086},s);
-    im.setAttribute('href','hotel.webp');
-    return s;
-  }
-
   var dk=$('dark'), lt=$('lit'), gl=$('glow');
   var litEl=[], glowEl=[];
   for(var r=0;r<ROWS;r++){
     litEl.push([]); glowEl.push([]);
     var y=GY+r*CH, h=Math.min(WH,YMAX-y);
     for(var c=0;c<COLS;c++){
-      var x=GX+c*CW+WX, hs=(r*7+c*3)%97;
-      sprite(dk,darkSrc[hs%3],x,y,h);
-      var ls=sprite(lt,litSrc[hs%6],x,y,h);
+      var x=GX+c*CW+WX;
+      var ls=el('rect',{x:x,y:y,width:WW,height:h,rx:1,fill:'url(#window-light)'},lt);
       ls.setAttribute('opacity',0);
       litEl[r].push(ls);
       glowEl[r].push(el('rect',{x:x-4,y:y,width:WW+8,height:h,rx:12,fill:'#ffb84a','fill-opacity':0},gl));
@@ -211,7 +205,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
   var FONT='700 8px "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
   function glyph(ch){
     var u=ch.toUpperCase();
-    if(F[u]){var rows=F[u].split(' ');var cols=[];for(var x=0;x<5;x++){var col=new Uint8Array(ROWS);for(var r=0;r<ROWS;r++)col[r]=rows[r][x]==='1'?1:0;cols.push(col)}return cols}
+    if(F[u]){var rows=F[u].split(' ');var cols=[];for(var x=0;x<5;x++){var col=new Uint8Array(ROWS);for(var r=0;r<rows.length;r++)col[r]=rows[r][x]==='1'?1:0;cols.push(col)}return cols}
     if(ch===' ')return [new Uint8Array(ROWS),new Uint8Array(ROWS),new Uint8Array(ROWS)];
     var cv=document.createElement('canvas'),ctx=cv.getContext('2d');
     ctx.font=FONT;var w=Math.max(1,Math.ceil(ctx.measureText(ch).width));
@@ -279,7 +273,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
       for(r=0;r<ROWS;r++)for(c=0;c<COLS;c++)tgt[r][c]=tw[r][c]?1:0;
     }else if(anim==='radial'){
       for(r=0;r<ROWS;r++)for(c=0;c<COLS;c++){
-        var dd=Math.hypot((c-7.5)*0.7,(r-3)*1.0);
+        var dd=Math.hypot((c-(COLS-1)/2)*0.7,(r-(ROWS-1)/2)*1.0);
         tgt[r][c]=Math.sin(dd*1.3-t*3.2)>0.25?1:0.1;
       }
     }
